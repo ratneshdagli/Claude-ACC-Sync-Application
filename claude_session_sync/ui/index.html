@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Session Sync</title>
+<style>
+:root{
+  --bg:#f6f5f2; --panel:#ffffff; --ink:#1f1e1b; --muted:#6b6862; --line:#e4e1da; --accent:#c96442; --accent-ink:#fff;
+  --ok:#2f7d4f; --okbg:#e3f3e9; --warn:#9a6a00; --warnbg:#fbf0d2; --bad:#b3372c; --badbg:#fbe4e1; --info:#2b6cb0; --infobg:#e2eefb;
+  --del:#7b3fa0; --delbg:#f0e6f7; --mono:ui-monospace,Consolas,"Cascadia Mono",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#191816; --panel:#22211e; --ink:#ecebe6; --muted:#a19e96; --line:#34322d; --accent:#d97757; --accent-ink:#1b1a17;
+  --ok:#6fcf97; --okbg:#1f3327; --warn:#e6b84d; --warnbg:#3a3120; --bad:#f08a80; --badbg:#3d2522; --info:#7db6f0; --infobg:#1f2d3d; --del:#c79be6; --delbg:#33253f;}
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Segoe UI Variable","Segoe UI",system-ui,sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;flex:1}
+.chip{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted);background:var(--bg);white-space:nowrap}
+.chip b{color:var(--ink);font-weight:600}
+.chip.ok{color:var(--ok);background:var(--okbg);border-color:transparent}.chip.warn{color:var(--warn);background:var(--warnbg);border-color:transparent}.chip.bad{color:var(--bad);background:var(--badbg);border-color:transparent}
+main{flex:1;display:grid;grid-template-columns:270px minmax(0,1fr) 360px;min-height:0}
+@media (max-width:1100px){main{grid-template-columns:1fr}.side,.detail{max-height:none}}
+.side,.detail{overflow:auto;padding:14px;border-right:1px solid var(--line);background:var(--panel)}
+.detail{border-right:0;border-left:1px solid var(--line)}
+.center{display:flex;flex-direction:column;min-width:0;min-height:0}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 8px;font-weight:600}
+.acct{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;background:var(--bg)}
+.acct .n{font-weight:600;overflow-wrap:anywhere}.acct .id,.mono{font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.acct .org{font-size:12px;margin-top:6px;color:var(--muted)}
+.acct .row{display:flex;gap:6px;margin-top:8px}
+.badge{font-size:11px;border-radius:6px;padding:1px 7px;font-weight:600;display:inline-block}
+.b-ok{background:var(--okbg);color:var(--ok)}.b-warn{background:var(--warnbg);color:var(--warn)}.b-bad{background:var(--badbg);color:var(--bad)}.b-info{background:var(--infobg);color:var(--info)}.b-del{background:var(--delbg);color:var(--del)}.b-mute{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.danger{color:var(--bad)}
+button.small{padding:2px 8px;font-size:12px}
+select,input[type=text],input[type=search]{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:6px 8px;min-width:0}
+.toolbar{display:flex;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap;background:var(--panel)}
+.toolbar .arrow{color:var(--muted);font-size:18px}
+.toolbar label{font-size:12px;color:var(--muted)}
+.tablewrap{flex:1;overflow:auto;min-height:0}
+table{border-collapse:collapse;width:100%}
+th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);z-index:1}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.row{cursor:pointer}tr.row:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+tr.sel{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+td .t{font-weight:600}td .p{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.actionbar{display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line);background:var(--panel);align-items:center}
+.actionbar .grow{flex:1}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;font-size:12.5px;margin-bottom:12px}
+.kv div:nth-child(odd){color:var(--muted)}
+.kv div:nth-child(even){overflow-wrap:anywhere}
+.flag{font-size:12.5px;padding:6px 8px;border-radius:8px;margin:4px 0}
+.flag.error{background:var(--badbg);color:var(--bad)}.flag.warn{background:var(--warnbg);color:var(--warn)}.flag.info{background:var(--infobg);color:var(--info)}
+.empty{color:var(--muted);padding:28px;text-align:center}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:0;width:min(940px,94vw);max-height:90vh;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dlg{display:flex;flex-direction:column;max-height:90vh}
+.dlg header{border:0;border-bottom:1px solid var(--line)}
+.dlg .body{overflow:auto;padding:14px 18px}
+.dlg .foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.item{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.item h3{margin:0 0 4px;font-size:14px}
+.item .l{font-size:12.5px;margin:2px 0;overflow-wrap:anywhere}
+.item .l.b{color:var(--bad)}.item .l.w{color:var(--warn)}.item .l.i{color:var(--muted)}
+.file{font-family:var(--mono);font-size:11.5px;background:var(--bg);border-radius:6px;padding:3px 6px;margin-top:4px;overflow-wrap:anywhere}
+.console{font-family:var(--mono);font-size:12px;background:#111;color:#d6d3cb;border-radius:8px;padding:10px;min-height:120px;max-height:320px;overflow:auto;white-space:pre-wrap}
+.chk{display:flex;gap:8px;align-items:flex-start;margin:6px 0;font-size:13px}.chk input{margin-top:3px}
+details{margin:8px 0}summary{cursor:pointer;color:var(--muted);font-size:12.5px}
+.note{font-size:12.5px;color:var(--muted)}
+.ver{font-size:12.5px}.ver .ok::before{content:"✓ ";color:var(--ok)}.ver .no::before{content:"✗ ";color:var(--bad)}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;display:none;z-index:9}
+[hidden]{display:none!important}
+.tabs{display:flex;gap:4px}
+.tabs button{border:0;background:transparent;border-radius:8px;padding:6px 14px;color:var(--muted);font-weight:600}
+.tabs button.on{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--ink)}
+#viewAuto{flex:1;overflow:auto;padding:18px;min-height:0}
+.autowrap{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.card h2{margin-bottom:10px}
+.hero{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.hero .dot{width:14px;height:14px;border-radius:50%;margin-top:5px;flex:none;background:var(--muted)}
+.hero .dot.on{background:var(--ok);box-shadow:0 0 0 4px var(--okbg)}.hero .dot.mid{background:var(--warn);box-shadow:0 0 0 4px var(--warnbg)}
+.hero .big{font-size:18px;font-weight:650}
+.hero .txt{flex:1;min-width:260px}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.steps{margin:0;padding-left:20px}.steps li{margin:5px 0}
+.form{display:grid;grid-template-columns:200px 1fr;gap:10px 14px;align-items:center}
+.form>label{color:var(--muted);font-size:13px}
+input[type=number]{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:5px 8px;width:90px}
+.route{display:inline-block;margin:2px 6px 2px 0}
+pre.log{font-family:var(--mono);font-size:11.5px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:200px;overflow:auto;white-space:pre-wrap;margin:6px 0 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Claude Session Sync</h1>
+  <div class="tabs"><button id="tabSessions" class="on">Sessions</button><button id="tabAuto">Auto-sync</button></div>
+  <div class="chips" id="chips"></div>
+  <button id="btnRescan" class="small">Rescan</button>
+  <button id="btnReport" class="small">Export Diagnostic Report</button>
+</header>
+<div id="viewAuto" hidden>
+  <div class="autowrap">
+    <section class="card"><h2>Automatic sync</h2><div id="autoHero"></div></section>
+    <section class="card" id="autoAttn" hidden><h2>Needs your attention</h2><div id="autoAttnBody"></div></section>
+    <section class="card"><h2>What it does</h2>
+      <ol class="steps">
+        <li>You work in Claude Desktop under one account. When you <b>quit Claude Desktop</b>, the background watcher notices (Desktop must be closed because it rewrites its own files while it runs).</li>
+        <li>A few seconds later it makes each account's <b>Code tab</b> list the same sessions: it adds/updates a small record in the other account that points at the <b>same conversation file</b>. Nothing is copied or edited in the conversation itself.</li>
+        <li>Every run takes a full backup first, checks every file it wrote, and undoes itself if anything looks wrong.</li>
+        <li>Later you open Claude Desktop, sign in with the other account, and continue the same session.</li>
+      </ol>
+      <p class="note">Only <b>Claude Desktop Code-tab</b> sessions are handled. Conversations you ran only in the <code>claude</code> terminal, and Cowork, are never touched. Sessions you deleted in an account are not brought back.</p>
+    </section>
+    <section class="card"><h2>Settings</h2><div id="autoForm"></div></section>
+    <section class="card"><h2>Activity</h2><div id="autoLog"></div></section>
+  </div>
+</div>
+<main id="viewSessions">
+  <aside class="side">
+    <h2>Accounts &amp; organizations</h2>
+    <div id="accounts"></div>
+    <h2 style="margin-top:16px">Claude Desktop</h2>
+    <div id="desk" class="note"></div>
+    <div id="deskBtns" class="row" style="margin-top:8px;display:flex;gap:6px"></div>
+    <h2 style="margin-top:16px">Storage model</h2>
+    <p class="note">The conversation is stored <b>once</b> (Claude Code transcript, shared by all accounts). Each account only has a small <b>record</b> that makes the session visible in its Code tab. Sync creates/updates that record for the target account and points it at the same transcript.</p>
+  </aside>
+
+  <section class="center">
+    <div class="toolbar">
+      <label>Source</label><select id="src"></select>
+      <button id="swap" class="small" title="swap direction">⇄</button>
+      <label>Target</label><select id="tgt"></select>
+      <input type="search" id="q" placeholder="Search title, project, id…" style="flex:1;min-width:160px">
+      <select id="stf"><option value="">All statuses</option></select>
+      <label><input type="checkbox" id="allAcc"> all accounts</label>
+      <label><input type="checkbox" id="showArch"> archived</label>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:28px"><input type="checkbox" id="selAll" title="select all shown"></th><th>Session</th><th>Account</th><th>Local ID</th><th>CLI session ID</th><th>Last activity</th><th>Status</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty" class="empty" style="display:none">No sessions match.</div>
+    </div>
+    <div class="actionbar">
+      <button id="btnPreview" class="primary">Preview Sync</button>
+      <button id="btnBackup">Backup</button>
+      <button id="btnVerify">Verify</button>
+      <button id="btnRollback" class="danger">Rollback…</button>
+      <button id="btnOpen" disabled>Open Project</button>
+      <span class="grow note" id="selInfo"></span>
+      <button id="btnProject" class="small" disabled title="select every session of the highlighted session's project">Select project</button>
+    </div>
+  </section>
+
+  <aside class="detail" id="detail"><div class="empty">Select a session to see details.</div></aside>
+</main>
+
+<dialog id="dlgPlan"><div class="dlg">
+  <header><h1 id="planTitle">Preview</h1></header>
+  <div class="body" id="planBody"></div>
+  <div class="foot" id="planFoot"></div>
+</div></dialog>
+
+<dialog id="dlgJob"><div class="dlg">
+  <header><h1 id="jobTitle"></h1></header>
+  <div class="body"><div class="console" id="jobLog"></div><div id="jobResult" style="margin-top:12px"></div></div>
+  <div class="foot"><button id="jobClose" disabled>Close</button></div>
+</div></dialog>
+
+<dialog id="dlgHist"><div class="dlg">
+  <header><h1>Operations &amp; rollback</h1></header>
+  <div class="body" id="histBody"></div>
+  <div class="foot" id="histFoot"><button id="histClose">Close</button></div>
+</div></dialog>
+<div id="toast"></div>
+
+<script>
+const TOKEN = new URLSearchParams(location.search).get('t') || '';
+history.replaceState(null, '', location.pathname);
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {headers:{'X-Token':TOKEN}} :
+    {method:'POST', headers:{'X-Token':TOKEN,'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3500)}
+const STATUS_CLASS = {'Healthy':'b-ok','Already synchronized':'b-info','Stale metadata':'b-warn','Needs review':'b-warn','Missing transcript':'b-bad','Conflict':'b-bad','Deleted/tombstoned':'b-del','New':'b-ok','Update':'b-info'};
+const pill = s => `<span class="badge ${STATUS_CLASS[s]||'b-mute'}">${esc(s)}</span>`;
+
+let OV=null, ROWS=[], SEL=new Set(), CUR=null, LASTPLAN=null;
+
+const acctName = id => { const a=OV.accounts.find(x=>x.id===id); return a? a.name : id.slice(0,8); };
+
+async function load() {
+  [OV, ROWS] = await Promise.all([api('/api/overview'), api('/api/sessions')]);
+  renderChrome(); renderAccounts(); fillSelects(); renderRows();
+}
+
+function renderChrome() {
+  const i = OV.installation, p = OV.app_probe, d = OV.desktop;
+  const chips = [];
+  chips.push(`<span class="chip"><b>${esc((i.kind||'?').toUpperCase())}</b> install · v${esc(i.version||'?')}</span>`);
+  chips.push(`<span class="chip" title="${esc(i.data_root||'')}">store: <b>${esc(i.sessions_root? 'found':'missing')}</b></span>`);
+  if (p) chips.push(`<span class="chip ${p.status==='verified'?'ok':'warn'}" title="${esc(p.detail)}">schema ${esc(p.status)}</span>`);
+  chips.push(`<span class="chip ${d.running?'warn':'ok'}">Desktop <b>${d.running?'running':'closed'}</b></span>`);
+  if (d.live_sessions.length) chips.push(`<span class="chip warn">${d.live_sessions.length} live session(s)</span>`);
+  chips.push(`<span class="chip"><b>${OV.transcripts}</b> transcripts</span>`);
+  $('#chips').innerHTML = chips.join('');
+}
+function renderAccounts() {
+  $('#accounts').innerHTML = OV.accounts.map(a => `
+    <div class="acct">
+      <div class="n">${esc(a.name)} ${a.is_active?'<span class="badge b-ok">signed in</span>':''}</div>
+      <div class="id">${esc(a.id)}</div>
+      ${a.orgs.map(o=>`<div class="org">org <span class="mono">${esc(o.id)}</span><br>${o.records} sessions · ${o.tombstones} tombstones ${o.evidence?'':'<span class="badge b-warn">weak pairing</span>'}</div>`).join('')}
+      <div class="row"><button class="small" data-set="src" data-id="${a.id}">Use as source</button><button class="small" data-set="tgt" data-id="${a.id}">as target</button><button class="small" data-label="${a.id}">Rename</button></div>
+    </div>`).join('') || '<div class="note">No accounts found.</div>';
+  $('#desk').innerHTML = OV.desktop.running ? `Running (${OV.desktop.process_count} processes).` + (OV.desktop.inside_desktop? '<br><b>This GUI was started from inside Claude Desktop</b> – it cannot close Desktop for you.':'') : 'Not running.';
+}
+function fillSelects() {
+  const opts = OV.accounts.map(a=>`<option value="${a.id}">${esc(a.name)} (${a.id.slice(0,8)})</option>`).join('');
+  const s=$('#src').value, t=$('#tgt').value;
+  $('#src').innerHTML=opts; $('#tgt').innerHTML=opts;
+  const richest = [...OV.accounts].sort((a,b)=>b.sessions-a.sessions)[0];
+  $('#src').value = s || (richest? richest.id : '');
+  $('#tgt').value = t || (OV.accounts.find(a=>a.id!==$('#src').value)||{}).id || '';
+  const sts=[...new Set(ROWS.map(r=>r.status))];
+  const cur=$('#stf').value;
+  $('#stf').innerHTML='<option value="">All statuses</option>'+sts.map(s=>`<option>${esc(s)}</option>`).join(''); $('#stf').value=cur;
+}
+function shown() {
+  const q=$('#q').value.toLowerCase(), st=$('#stf').value, all=$('#allAcc').checked, arch=$('#showArch').checked, src=$('#src').value;
+  return ROWS.filter(r => (all || r.account_id===src) && (arch || !r.archived) && (!st || r.status===st) &&
+    (!q || [r.title,r.cwd,r.local_id,r.cli_id].some(x=>(x||'').toLowerCase().includes(q))));
+}
+function renderRows() {
+  const rs = shown();
+  $('#rows').innerHTML = rs.map(r => `
+    <tr class="row ${CUR===r.record_path?'sel':''}" data-path="${esc(r.record_path)}">
+      <td><input type="checkbox" class="pick" ${SEL.has(r.record_path)?'checked':''}></td>
+      <td><div class="t">${esc(r.title)} ${r.live?'<span class="badge b-ok">LIVE</span>':''} ${r.archived?'<span class="badge b-mute">archived</span>':''}</div><div class="p">${esc(r.cwd||'')}</div></td>
+      <td>${esc(acctName(r.account_id))}</td>
+      <td class="mono">${esc(r.local_id)}</td>
+      <td class="mono">${esc(r.cli_id||'—')}</td>
+      <td>${esc(r.last_activity_text)}</td>
+      <td>${pill(r.status)} ${r.also_in_accounts.map(a=>`<span class="badge b-info" title="also visible in ${esc(acctName(a))}">+${esc(acctName(a).slice(0,10))}</span>`).join(' ')}</td>
+    </tr>`).join('');
+  $('#empty').style.display = rs.length ? 'none':'block';
+  updateSel();
+}
+function updateSel() {
+  const n = [...SEL].filter(p=>ROWS.some(r=>r.record_path===p)).length;
+  $('#selInfo').textContent = n ? `${n} selected` : 'Nothing selected – Preview will ask you to pick sessions.';
+  $('#btnOpen').disabled = !CUR; $('#btnProject').disabled = !CUR;
+}
+$('#rows').addEventListener('click', e => {
+  const tr = e.target.closest('tr.row'); if (!tr) return;
+  const p = tr.dataset.path;
+  if (e.target.classList.contains('pick')) { e.target.checked ? SEL.add(p) : SEL.delete(p); updateSel(); return; }
+  CUR = p; renderRows(); showDetail(p);
+});
+$('#selAll').onchange = e => { shown().forEach(r => e.target.checked ? SEL.add(r.record_path) : SEL.delete(r.record_path)); renderRows(); };
+['q','stf','allAcc','showArch','src'].forEach(id => $('#'+id).addEventListener('input', renderRows));
+$('#swap').onclick = () => { const s=$('#src').value; $('#src').value=$('#tgt').value; $('#tgt').value=s; SEL.clear(); renderRows(); };
+$('#btnProject').onclick = () => { const r=ROWS.find(x=>x.record_path===CUR); if(!r) return; ROWS.filter(x=>x.account_id===r.account_id && x.cwd===r.cwd).forEach(x=>SEL.add(x.record_path)); renderRows(); };
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-set]'); if (b) { $('#'+b.dataset.set).value=b.dataset.id; SEL.clear(); renderRows(); }
+  const l = e.target.closest('[data-label]'); if (l) {
+    const name = prompt('Friendly name for this account (e.g. its e-mail):'); if (name==null) return;
+    await api('/api/label',{account:l.dataset.label,label:name}); load();
+  }
+});
+
+async function showDetail(path) {
+  $('#detail').innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const d = await api('/api/session?path='+encodeURIComponent(path));
+    const t = d.transcript || {};
+    $('#detail').innerHTML = `
+      <h2>Session details</h2>
+      <div style="font-size:16px;font-weight:650;margin-bottom:4px">${esc(d.title)}</div>
+      <div style="margin-bottom:10px">${pill(d.status)}</div>
+      <div class="kv">
+        <div>Account</div><div>${esc(acctName(d.account_id))}<div class="mono">${esc(d.account_id)}</div></div>
+        <div>Organization</div><div class="mono">${esc(d.org_id)}</div>
+        <div>Project path</div><div>${esc(d.cwd||'')} ${d.project_exists?'':'<span class="badge b-warn">missing folder</span>'}</div>
+        <div>Local session ID</div><div class="mono">${esc(d.local_id)}</div>
+        <div>CLI session ID</div><div class="mono">${esc(d.cli_id||'—')}</div>
+        <div>Prior CLI IDs</div><div class="mono">${d.prior_cli_ids.length? d.prior_cli_ids.map(esc).join('<br>') : '—'}</div>
+        <div>Record</div><div class="mono">${esc(d.path)}<br>${d.size} bytes · sha256 ${esc(d.sha256.slice(0,16))}…</div>
+        <div>Transcript</div><div class="mono">${esc(d.transcript_path||'MISSING')}${t.size?`<br>${(t.size/1048576).toFixed(2)} MB · ${t.lines??'?'} lines · ${esc(t.first_ts||'')} → ${esc(t.last_ts||'')}`:''}</div>
+        <div>Sidecar files</div><div>${d.sidecar_files.length} (subagents, tool results, title)</div>
+        <div>Tombstones</div><div>${d.tombstones.length? d.tombstones.map(x=>esc(x.what)).join(', '):'none'}</div>
+        <div>Released marker</div><div>${d.released_markers.length? '<span class="badge b-warn">present</span>':'none'}</div>
+      </div>
+      <h2>Findings</h2>
+      ${d.flags.length? d.flags.map(f=>`<div class="flag ${f.severity}">${esc(f.message)}</div>`).join('') : '<div class="flag info">No problems found.</div>'}
+      <h2 style="margin-top:12px">Record fields</h2>
+      <div class="note"><b>Copied on sync (${d.fields.carry.length}):</b> ${d.fields.carry.map(esc).join(', ')||'—'}</div>
+      <div class="note" style="margin-top:6px"><b>Never copied – org-specific:</b> ${d.fields.org.map(esc).join(', ')||'—'}</div>
+      <div class="note" style="margin-top:6px"><b>Never copied – runtime/error:</b> ${d.fields.runtime.map(esc).join(', ')||'—'}</div>
+      ${d.fields.blocker.length?`<div class="note" style="margin-top:6px"><b>Blocks sync:</b> ${d.fields.blocker.map(esc).join(', ')}</div>`:''}
+      ${d.fields.unknown.length?`<div class="note" style="margin-top:6px"><b>Unclassified (not copied):</b> ${d.fields.unknown.map(esc).join(', ')}</div>`:''}`;
+  } catch(e) { $('#detail').innerHTML = `<div class="flag error">${esc(e.message)}</div>`; }
+}
+
+// ---- preview / sync ----
+function planRequest(extra) {
+  const src = $('#src').value, tgt = $('#tgt').value;
+  const sessions = ROWS.filter(r => SEL.has(r.record_path) && r.account_id===src).map(r => r.local_id);
+  if (!sessions.length) throw new Error('Select at least one session of the source account (tick the boxes).');
+  return {source:src, target:tgt, sessions, options: extra||{}};
+}
+async function preview(extra) {
+  let req; try { req = planRequest(extra); } catch(e){ return toast(e.message); }
+  if (req.source===req.target) return toast('Source and target must differ.');
+  $('#planTitle').textContent = 'Preview – nothing has been written'; $('#planBody').innerHTML='<div class="empty">Analysing (deep transcript verification)…</div>'; $('#planFoot').innerHTML='';
+  $('#dlgPlan').showModal();
+  try {
+    const p = await api('/api/plan', req); LASTPLAN = {p, req};
+    renderPlan(p, req);
+  } catch(e) { $('#planBody').innerHTML = `<div class="flag error">${esc(e.message)}</div>`; $('#planFoot').innerHTML='<button onclick="$(\'#dlgPlan\').close()">Close</button>'; }
+}
+const ACT = {create:'New', update:'Update', noop:'Already synchronized', blocked:'Needs review', conflict:'Conflict'};
+function renderPlan(p, req) {
+  const advOpen = false;
+  let h = `<div class="note" style="margin-bottom:10px">${esc(acctName(p.source_account))} → ${esc(acctName(p.target_account))} · target org <span class="mono">${esc(p.target_org||'?')}</span></div>`;
+  p.blockers.forEach(b=> h += `<div class="flag error">${esc(b)}</div>`);
+  p.warnings.forEach(b=> h += `<div class="flag warn">${esc(b)}</div>`);
+  p.items.forEach(it => {
+    h += `<div class="item"><h3>${pill(it.label||ACT[it.action])} ${esc(it.title)}</h3>
+      <div class="l i">${esc(it.cwd||'')}</div>
+      <div class="l i">source ${esc(it.source_local_id)} · CLI ${esc(it.cli_id)}</div>`;
+    it.reasons.forEach(r=> h += `<div class="l b">✗ ${esc(r)}</div>`);
+    it.warnings.forEach(r=> h += `<div class="l w">~ ${esc(r)}</div>`);
+    it.infos.forEach(r=> h += `<div class="l i">i ${esc(r)}</div>`);
+    if (it.action==='create') h += `<div class="l">Creates a record for the target account that points at the <b>same transcript</b> (not copied). ${it.changes.length} identity fields carried.</div>`;
+    if (it.action==='update') it.changes.forEach(c=> h += `<div class="l"><span class="mono">${esc(c.field)}</span>: ${esc(c.old)} → ${esc(c.new)} <span class="note">(${esc(c.note)})</span></div>`);
+    Object.entries(it.dropped||{}).forEach(([k,v])=> h += `<div class="l i">not copied (${esc(k.replace('_',' '))}): ${v.map(esc).join(', ')}</div>`);
+    it.ops.forEach(o=> h += `<div class="file">${esc(o.kind.toUpperCase())} ${esc(o.path)}${o.bytes?` (${o.bytes} B)`:''}</div>`);
+    h += `</div>`;
+  });
+  h += `<details><summary>Advanced policy (all off by default)</summary>
+    <label class="chk"><input type="checkbox" id="o_resurrect"><span>Re-create sessions the target account deleted on purpose (removes the tombstone)</span></label>
+    <label class="chk"><input type="checkbox" id="o_marker"><span>Remove the “desktop-released” marker next to a transcript</span></label>
+    <label class="chk"><input type="checkbox" id="o_force"><span>Overwrite progress fields even if the target is ahead</span></label>
+    <label class="chk"><input type="checkbox" id="o_newid"><span>Use a fresh local id if the file name is taken by another conversation</span></label>
+    <label class="chk"><input type="checkbox" id="o_grants"><span>Do not carry always-allowed rules / granted folders (permission mode is kept)</span></label>
+    <label class="chk"><input type="checkbox" id="o_arch"><span>Include archived sessions</span></label>
+    <button class="small" id="o_apply">Re-run preview with these options</button></details>`;
+  $('#planBody').innerHTML = h;
+  $('#o_apply').onclick = () => preview({resurrect:$('#o_resurrect').checked, clear_released_marker:$('#o_marker').checked,
+       force_update:$('#o_force').checked, new_id_on_collision:$('#o_newid').checked, include_archived:$('#o_arch').checked, drop_permission_grants:$('#o_grants').checked});
+  const runnable = p.runnable;
+  let f = '';
+  if (runnable && !p.blockers.length) {
+    if (p.desktop_running) {
+      f += p.inside_desktop
+        ? `<span class="flag error" style="flex:1">Claude Desktop is running and this window was launched from inside it. Quit Desktop, then launch this tool from a normal terminal.</span>`
+        : `<label class="chk"><input type="checkbox" id="c_close" checked><span>Close Claude Desktop first (required)</span></label>
+           <label class="chk"><input type="checkbox" id="c_restart" checked><span>Restart it afterwards</span></label>`;
+    }
+    f += `<label class="chk"><input type="checkbox" id="c_tx"><span>Also copy transcripts into the backup</span></label><span style="flex:1"></span>
+      <button id="btnApply" class="primary" ${p.desktop_running&&p.inside_desktop?'disabled':''}>Apply ${runnable} change(s)</button>`;
+  } else f += `<span class="note" style="flex:1">${p.blockers.length? 'Plan blocked.' : 'Nothing to change.'}</span>`;
+  f += `<button onclick="$('#dlgPlan').close()">Close</button>`;
+  $('#planFoot').innerHTML = f;
+  const ap = $('#btnApply'); if (ap) ap.onclick = () => applyPlan(p);
+}
+async function applyPlan(p) {
+  const running = p.desktop_running;
+  const msg = `Apply ${p.runnable} change(s) to the Claude session store?` + (running ? '\nClaude Desktop will be closed first (unsaved chat input is lost).' : '') + '\nA full backup is created first and every write is verified.';
+  if (!confirm(msg)) return;
+  const body = {plan_id:p.id, confirm:true, close_desktop: $('#c_close')?.checked ?? false, restart_desktop: $('#c_restart')?.checked ?? false, backup_transcripts: $('#c_tx').checked};
+  $('#dlgPlan').close();
+  try { const {job} = await api('/api/apply', body); runJob(job, 'Sync'); } catch(e){ toast(e.message); }
+}
+function runJob(id, title, then) {
+  $('#jobTitle').textContent = title + ' …'; $('#jobLog').textContent=''; $('#jobResult').innerHTML=''; $('#jobClose').disabled=true;
+  $('#dlgJob').showModal();
+  const tick = async () => {
+    const j = await api('/api/job?id='+id);
+    $('#jobLog').textContent = j.log.join('\n'); $('#jobLog').scrollTop = 1e9;
+    if (!j.done) return setTimeout(tick, 500);
+    $('#jobTitle').textContent = title + (j.ok ? ' – done' : ' – FAILED');
+    $('#jobResult').innerHTML = j.ok ? renderResult(title, j.result) : `<div class="flag error">${esc(j.error)}</div>`;
+    $('#jobClose').disabled = false; SEL.clear(); load(); if (!$('#viewAuto').hidden) loadAuto(true);
+  };
+  tick();
+}
+function renderResult(title, r) {
+  if (title==='Auto-sync run') return renderAutoRun(r, false);
+  if (title==='Sync' || title==='Rollback') {
+    if (r.verification) return `<div class="flag info">Operation <span class="mono">${esc(r.op_id)}</span> verified. Backup: <span class="mono">${esc(r.backup_dir)}</span></div>
+      <div class="ver">${r.verification.map(c=>`<div class="${c.ok?'ok':'no'}">${esc(c.check)} ${c.detail?'– '+esc(c.detail):''}</div>`).join('')}</div>
+      <p class="note">Open Claude Desktop signed in as the target account – the session appears in its Code tab. Undo any time via “Rollback…”.</p>`;
+    if (r.restored) return `<div class="flag ${r.ok?'info':'error'}">${r.ok?'Rolled back':'Incomplete rollback'} ${esc(r.op_id)}</div>${r.restored.map(x=>`<div class="l">${esc(x)}</div>`).join('')}${r.problems.map(x=>`<div class="flag error">${esc(x)}</div>`).join('')}`;
+    return `<div class="note">${esc(JSON.stringify(r))}</div>`;
+  }
+  if (title==='Backup') return `<div class="flag info">Backup <span class="mono">${esc(r.op_id)}</span>: ${r.files} store file(s), ${r.transcript_files} transcript file(s)<br><span class="mono">${esc(r.dir)}</span></div>`;
+  if (title==='Verify') {
+    let h = `<div>${Object.entries(r.counts).map(([k,v])=>`${pill(k)} ×${v}`).join(' ')}</div>`;
+    Object.entries(r.assessments).filter(([_,a])=>a.status!=='Healthy').forEach(([p,a])=> h += `<div class="flag warn"><b>${esc(a.status)}</b> ${esc(p.split('\\').pop())}<br>${a.reasons.map(esc).join('<br>')}</div>`);
+    Object.entries(r.orphans).filter(([_,v])=>v.length).forEach(([k,v])=> h += `<div class="flag info">${esc(k.replace(/_/g,' '))}: ${v.length}</div>`);
+    [...r.ledger_issues, ...r.problems].forEach(x=> h += `<div class="flag warn">${esc(x)}</div>`);
+    return h;
+  }
+  return '';
+}
+$('#btnBackup').onclick = async () => {
+  const inc = confirm('Create a full backup of the session store now.\n\nOK = also copy the conversation transcripts (larger, most complete)\nCancel = session-store metadata only');
+  try { const {job}=await api('/api/backup',{include_transcripts:inc}); runJob(job,'Backup'); } catch(e){ toast(e.message); }
+};
+$('#btnVerify').onclick = async () => { const {job}=await api('/api/verify',{deep:true}); runJob(job,'Verify'); };
+$('#btnPreview').onclick = () => preview();
+$('#btnOpen').onclick = async () => { const r=ROWS.find(x=>x.record_path===CUR); try{ await api('/api/open-project',{path:r.cwd}); }catch(e){toast(e.message)} };
+$('#btnRescan').onclick = () => load().then(()=>toast('Rescanned'));
+$('#btnReport').onclick = async () => {
+  const red = confirm('Redact titles, folder paths and e-mails (recommended before sharing)?');
+  const r = await api('/api/report',{redact:red}); toast('Report saved: '+r.path);
+  const blob = new Blob([JSON.stringify(r.report,null,1)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='claude-session-sync-diagnostic.json'; a.click();
+};
+$('#btnRollback').onclick = async () => {
+  const h = await api('/api/history');
+  const ops = h.ops.filter(o=>o.kind==='sync');
+  $('#histBody').innerHTML = ops.length ? `<table><thead><tr><th>Operation</th><th>Status</th><th>Created</th><th>Files</th><th></th></tr></thead><tbody>${ops.reverse().map(o=>`<tr><td class="mono">${esc(o.op_id)}</td><td>${pill(o.status==='verified'?'Healthy':(o.status==='rolled-back'?'Already synchronized':'Needs review'))} ${esc(o.status)}</td><td>${esc(o.created)}</td><td>${o.changes}</td><td>${o.status==='rolled-back'?'':`<button class="small danger" data-rb="${esc(o.op_id)}">Roll back</button>`}</td></tr>`).join('')}</tbody></table><p class="note">Rollback restores the exact pre-operation files from the backup, refuses to overwrite anything you changed since (hash-checked), and makes its own safety backup first.</p>` : '<div class="empty">No sync operations yet.</div>';
+  $('#dlgHist').showModal();
+};
+$('#histClose').onclick = () => $('#dlgHist').close();
+$('#dlgHist').addEventListener('click', async e => {
+  const b = e.target.closest('[data-rb]'); if(!b) return;
+  const running = OV.desktop.running;
+  if (!confirm('Roll back operation '+b.dataset.rb+'?' + (running?'\nClaude Desktop will be closed first.':''))) return;
+  $('#dlgHist').close();
+  try { const {job}=await api('/api/rollback',{op:b.dataset.rb, close_desktop:running, restart_desktop:running}); runJob(job,'Rollback'); } catch(e){toast(e.message)}
+});
+$('#jobClose').onclick = () => $('#dlgJob').close();
+
+// ---- auto-sync tab ----
+let AUTO = null, autoTimer = null;
+function showTab(t) {
+  $('#viewSessions').hidden = t !== 'sessions'; $('#viewAuto').hidden = t !== 'auto';
+  $('#tabSessions').classList.toggle('on', t === 'sessions'); $('#tabAuto').classList.toggle('on', t === 'auto');
+  clearInterval(autoTimer);
+  if (t === 'auto') { loadAuto(); autoTimer = setInterval(() => { if (!$('#dlgPlan').open && !$('#dlgJob').open) loadAuto(true); }, 5000); }
+}
+$('#tabSessions').onclick = () => showTab('sessions');
+$('#tabAuto').onclick = () => showTab('auto');
+async function loadAuto(poll) {
+  try { const first = !AUTO; AUTO = await api('/api/auto'); renderHero(); renderActivity(); if (!poll || first) renderForm(); }
+  catch (e) { if (!poll) toast(e.message); }
+}
+const WSTATE = {'desktop-running':'Claude Desktop is open. Waiting for you to quit it, then it syncs.', 'idle':'Claude Desktop is closed. Everything is up to date.', 'syncing':'Syncing right now…', 'starting':'Starting…', 'stopped':'Stopped.'};
+function renderHero() {
+  const a = AUTO, w = a.watcher, on = w.running, boot = a.autostart.enabled, inside = a.inside_desktop;
+  let dot = '', big, txt;
+  if (on && boot) { dot = 'on'; big = 'Automatic sync is ON'; txt = 'It starts with Windows and mirrors your accounts every time you quit Claude Desktop.'; }
+  else if (on) { dot = 'mid'; big = 'Running – but will not start after a restart'; txt = 'Use “Turn on” to make it start with Windows.'; }
+  else if (boot) { dot = 'mid'; big = 'Set to start with Windows – not running now'; txt = 'It will start at your next sign-in, or press “Turn on” to start it now.'; }
+  else { big = 'Automatic sync is OFF'; txt = 'Nothing happens by itself. You can still use the Sessions tab or “Sync now”.'; }
+  const routes = a.routes.map(r => `<span class="badge b-info route">${esc(r.from_name)} → ${esc(r.to_name)}</span>`).join('') || '<span class="note">No routes – sign in to Claude Desktop with two accounts first.</span>';
+  const lr = w.last_run;
+  $('#autoHero').innerHTML = `
+    <div class="hero"><div class="dot ${dot}"></div><div class="txt">
+      <div class="big">${esc(big)}</div><div class="note">${esc(txt)}</div>
+      ${on ? `<div style="margin-top:6px">${esc(WSTATE[w.state] || w.state)}</div>` : ''}
+      <div style="margin-top:8px">Mirrors: ${routes}</div>
+      ${lr ? `<div class="note" style="margin-top:6px">Last run ${esc((lr.finished || lr.started || '').replace('T', ' ').slice(0, 19))}: <b>${esc(lr.status)}</b>${lr.reason ? ' – ' + esc(lr.reason) : ` – ${lr.created || 0} new, ${lr.updated || 0} updated`}</div>` : ''}
+      ${inside ? '<div class="flag warn" style="margin-top:8px">This window was opened from inside Claude Desktop, so it cannot turn the watcher on/off or restart Desktop. Open <b>claude-session-sync-gui.exe</b> (or the .cmd) from the Windows Start menu / Explorer instead.</div>' : ''}
+      <div class="btnrow">
+        <button class="primary" id="aToggle" ${inside ? 'disabled' : ''}>${on || boot ? 'Turn off' : 'Turn on'}</button>
+        <button id="aRun" ${inside && a.desktop_running ? 'disabled' : ''}>Sync now</button>
+        <button id="aLaunch" ${a.desktop_running || inside ? 'disabled' : ''} title="sync, then open Claude Desktop">Open Claude (sync first)</button>
+      </div></div></div>`;
+  $('#aToggle').onclick = autoToggle;
+  $('#aRun').onclick = () => autoRunNow(false);
+  $('#aLaunch').onclick = () => autoRunNow(true);
+}
+function renderAutoRun(r, preview) {
+  if (r.status === 'skipped') return `<div class="flag warn">${esc(r.reason)}</div>`;
+  let h = '';
+  r.routes.forEach(x => {
+    h += `<div class="item"><h3>${esc(x.from)} → ${esc(x.to)}</h3>`;
+    if (x.created.length) h += `<div class="l">${preview ? 'Will add' : 'Added'} ${x.created.length} session(s) to the Code tab: ${x.created.map(esc).join(', ')}</div>`;
+    if (x.updated.length) h += `<div class="l">${preview ? 'Will update' : 'Updated'} ${x.updated.length}: ${x.updated.map(esc).join(', ')}</div>`;
+    if (x.synced) h += `<div class="l i">${x.synced} already in step</div>`;
+    x.skipped.forEach(s => h += `<div class="l w">skipped: ${esc(s)}</div>`);
+    (x.blocked || []).forEach(s => h += `<div class="l b">${esc(s)}</div>`);
+    if (x.error) h += `<div class="l b">${esc(x.error)}</div>`;
+    if (!x.created.length && !x.updated.length && !x.synced && !x.skipped.length && !x.blocked && !x.error) h += '<div class="l i">nothing to do</div>';
+    h += '</div>';
+  });
+  (r.notes || []).forEach(n => h += `<div class="flag info">${esc(n)}</div>`);
+  (r.errors || []).forEach(n => h += `<div class="flag error">${esc(n)}</div>`);
+  return h || '<div class="empty">Nothing to do.</div>';
+}
+async function autoToggle() {
+  if (AUTO.autostart.enabled || AUTO.watcher.running) {
+    if (!confirm('Turn off automatic sync?\nManual sync keeps working.')) return;
+    try { await api('/api/auto/enable', {enable: false}); toast('Automatic sync is off'); } catch (e) { toast(e.message); }
+    return loadAuto();
+  }
+  $('#planTitle').textContent = 'Turn on automatic sync'; $('#planBody').innerHTML = '<div class="empty">Checking what the first pass would do…</div>'; $('#planFoot').innerHTML = '';
+  $('#dlgPlan').showModal();
+  try {
+    const r = await api('/api/auto/preview', {});
+    $('#planBody').innerHTML = '<div class="note" style="margin-bottom:10px">This is what the first pass will do the next time Claude Desktop is closed. Nothing has been written yet.</div>' + renderAutoRun(r, true);
+    $('#planFoot').innerHTML = '<span style="flex:1"></span><button class="primary" id="aGo">Turn on</button><button onclick="$(\'#dlgPlan\').close()">Cancel</button>';
+    $('#aGo').onclick = async () => { $('#dlgPlan').close(); try { await api('/api/auto/enable', {enable: true}); toast('Automatic sync is on'); } catch (e) { toast(e.message); } loadAuto(); };
+  } catch (e) { $('#planBody').innerHTML = `<div class="flag error">${esc(e.message)}</div>`; $('#planFoot').innerHTML = '<button onclick="$(\'#dlgPlan\').close()">Close</button>'; }
+}
+async function autoRunNow(launch) {
+  const running = AUTO.desktop_running;
+  let msg = launch ? 'Sync now, then start Claude Desktop?' : 'Run one sync pass now?';
+  if (!launch && running) msg += '\nClaude Desktop will be closed first (unsaved chat input is lost) and started again afterwards.';
+  if (!confirm(msg)) return;
+  try { const {job} = await api(launch ? '/api/launch' : '/api/auto/run', {close_desktop: running, restart_desktop: running}); runJob(job, 'Auto-sync run'); } catch (e) { toast(e.message); }
+}
+function renderForm() {
+  const a = AUTO, c = a.config, mode = c.routes.length ? 'one-way' : (c.accounts.length ? 'both' : 'all');
+  const usable = a.accounts.filter(x => x.usable);
+  const opt = (id) => usable.map(x => `<option value="${x.id}" ${x.id === id ? 'selected' : ''}>${esc(x.name)} (${x.id.slice(0, 8)})</option>`).join('');
+  const r0 = c.routes[0] || {};
+  $('#autoForm').innerHTML = `<div class="form">
+    <label>Which accounts</label>
+    <div><select id="f_mode"><option value="all" ${mode === 'all' ? 'selected' : ''}>All accounts, both ways</option><option value="both" ${mode === 'both' ? 'selected' : ''}>Only some accounts, both ways</option><option value="one-way" ${mode === 'one-way' ? 'selected' : ''}>One way only</option></select>
+      <div id="f_both" style="margin-top:6px" ${mode === 'both' ? '' : 'hidden'}>${usable.map(x => `<label class="chk"><input type="checkbox" class="f_acct" value="${x.id}" ${c.accounts.includes(x.id) ? 'checked' : ''}><span>${esc(x.name)} <span class="mono">${x.id.slice(0, 8)}</span> · ${x.sessions} sessions</span></label>`).join('')}</div>
+      <div id="f_one" style="margin-top:6px" ${mode === 'one-way' ? '' : 'hidden'}>from <select id="f_from">${opt(r0.from)}</select> → to <select id="f_to">${opt(r0.to)}</select></div></div>
+    <label>Only sessions active in the last</label><div><input type="number" id="f_age" min="0" value="${c.max_age_days}"> days <span class="note">(0 = all, however old)</span></div>
+    <label>Archived sessions</label><label class="chk" style="margin:0"><input type="checkbox" id="f_arch" ${c.include_archived ? 'checked' : ''}><span>Also mirror archived sessions</span></label>
+    <label>Automatic backups to keep</label><div><input type="number" id="f_keep" min="0" value="${c.keep_backups}"> <span class="note">newest N (0 = keep all). Only automatic backups are ever removed.</span></div>
+  </div>
+  <div class="btnrow"><button class="primary" id="f_save">Save settings</button><button id="f_prev">Preview what a run would do now</button></div>
+  <div id="f_out" style="margin-top:10px"></div>`;
+  $('#f_mode').onchange = () => { const m = $('#f_mode').value; $('#f_both').hidden = m !== 'both'; $('#f_one').hidden = m !== 'one-way'; };
+  $('#f_save').onclick = saveAutoForm;
+  $('#f_prev').onclick = async () => { $('#f_out').innerHTML = '<div class="note">Checking…</div>'; try { $('#f_out').innerHTML = renderAutoRun(await api('/api/auto/preview', {}), true); } catch (e) { $('#f_out').innerHTML = `<div class="flag error">${esc(e.message)}</div>`; } };
+}
+async function saveAutoForm() {
+  const m = $('#f_mode').value;
+  const body = {max_age_days: +$('#f_age').value, include_archived: $('#f_arch').checked, keep_backups: +$('#f_keep').value};
+  if (m === 'all') { body.mode = 'both'; body.accounts = []; }
+  if (m === 'both') { body.mode = 'both'; body.accounts = [...document.querySelectorAll('.f_acct:checked')].map(x => x.value); }
+  if (m === 'one-way') { body.mode = 'one-way'; body.from = $('#f_from').value; body.to = $('#f_to').value; }
+  try { await api('/api/auto/config', body); toast('Saved'); AUTO = null; loadAuto(); } catch (e) { toast(e.message); }
+}
+function renderAttention() {
+  const a = AUTO.attention || [];
+  $('#autoAttn').hidden = !a.length;
+  $('#autoAttnBody').innerHTML = a.map(x => `<div class="flag warn"><b>${esc(x.title)}</b> (${esc(x.account)}) – ${esc(x.status)}<br>${esc(x.why)}</div>`).join('') +
+    '<p class="note">Tip: to remove a synced session, <b>archive</b> it instead of deleting it – deleting in one account can let Claude clean up the shared conversation file that the other account still uses.</p>';
+}
+function renderActivity() {
+  renderAttention();
+  const a = AUTO, lr = a.watcher.last_run;
+  let h = '';
+  if (lr && lr.routes) h += `<div class="note" style="margin-bottom:6px">Most recent run:</div>` + renderAutoRun(lr, false);
+  const ev = a.events.filter(e => e.event === 'auto-run').slice(-8).reverse();
+  if (ev.length) h += `<div class="note" style="margin:8px 0 4px">Changes made automatically</div>` + ev.map(e => `<div class="l">${esc(e.ts.replace('T', ' ').slice(0, 19))} – ${e.created} new, ${e.updated} updated${e.errors && e.errors.length ? ' – <span style="color:var(--bad)">' + esc(e.errors.join('; ')) + '</span>' : ''}</div>`).join('');
+  h += `<details><summary>Watcher log</summary><pre class="log">${esc(a.log.join('\n') || '(empty)')}</pre></details>`;
+  h += '<p class="note">Every automatic change has a backup and can be undone: Sessions tab → Rollback…</p>';
+  $('#autoLog').innerHTML = h;
+}
+load().catch(e => { document.body.innerHTML = '<div class="empty">Cannot reach the local service: '+esc(e.message)+'</div>'; });
+setInterval(async () => { try { OV.desktop = (await api('/api/overview')).desktop; renderChrome(); } catch(e){} }, 15000);
+</script>
+</body>
+</html>
